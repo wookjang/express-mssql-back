@@ -1,0 +1,9 @@
+{
+  "development": {
+    "username": "admin",
+    "password": "admin",
+    "database": "SIDE",
+    "host": "localhost",
+    "dialect": "mssql"
+  }
+}
