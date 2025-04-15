@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const db = require("../models");
+const bcrypt = require("bcrypt");
 
 router.get("/", async (req, res) => {
   try {
@@ -12,6 +13,7 @@ router.get("/", async (req, res) => {
   }
 });
 
+//회원가입
 router.post("/register", async (req, res) => {
   try {
     const { nickname, email, password } = req.body;
@@ -26,6 +28,65 @@ router.post("/register", async (req, res) => {
     res.status(201).json({ message: "회원가입 성공", member: newMember });
   } catch (err) {
     res.status(500).json({ error: "회원가입 중 서버 오류" });
+  }
+});
+
+//로그인
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // 이메일로 유저 찾기
+    const user = await db.Member.findOne({ where: { email } });
+    if (!user) {
+      return res.status(401).json({ error: "존재하지 않는 이메일입니다." });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
+      return res.status(401).json({ error: "비밀번호가 일치하지 않습니다." });
+    }
+
+    // 3. 로그인 성공
+    res.status(200).json({
+      message: "로그인 되었습니다.",
+      user: {
+        seq: user.seq,
+        nickname: user.nickname,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: "로그인 오류" });
+  }
+});
+
+//닉네임 변경
+router.put("/nickname", async (req, res) => {
+  try {
+    const { nickname, email } = req.body;
+
+    // 이메일로 유저 찾기
+    const user = await db.Member.findOne({ where: { email } });
+    if (!user) {
+      return res.status(401).json({ error: "로그인 정보 오류가 있습니다" });
+    }
+
+    // 2. 닉네임 업데이트
+    user.nickname = nickname;
+    await user.save();
+
+    // 3. 변경 성공
+    res.status(200).json({
+      message: "닉네임이 변경되었습니다.",
+      user: {
+        nickname: user.nickname,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: "닉네임 변경 오류" });
   }
 });
 
