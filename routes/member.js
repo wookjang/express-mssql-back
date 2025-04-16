@@ -2,6 +2,10 @@ const express = require("express");
 const router = express.Router();
 const db = require("../models");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+
+const JWT_SECRET = process.env.JWT_SECRET || "yourSecretKey";
+const JWT_EXPIRES = "1h"; // 토큰 만료시간
 
 router.get("/", async (req, res) => {
   try {
@@ -24,6 +28,7 @@ router.post("/register", async (req, res) => {
       return res.status(400).json({ error: "이미 가입된 이메일입니다." });
     }
 
+    //가입
     const newMember = await db.Member.create({ nickname, email, password });
     res.status(201).json({ message: "회원가입 성공", member: newMember });
   } catch (err) {
@@ -48,7 +53,15 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "비밀번호가 일치하지 않습니다." });
     }
 
-    // 3. 로그인 성공
+    const payload = {
+      seq: user.seq,
+      email: user.email,
+      nickname: user.nickname,
+    };
+
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+
+    // 로그인 성공
     res.status(200).json({
       message: "로그인 되었습니다.",
       user: {
@@ -87,6 +100,37 @@ router.put("/nickname", async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: "닉네임 변경 오류" });
+  }
+});
+
+//패스워드 변경
+router.put("/password", async (req, res) => {
+  try {
+    const { password, email } = req.body;
+
+    const user = await db.Member.findOne({ where: { email } });
+
+    if (!user) {
+      return res.status(401).json({ error: "로그인 정보 오류가 있습니다" });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    console.log("hashedPassword : ", hashedPassword);
+
+    user.password = hashedPassword;
+
+    await user.save();
+
+    // 3. 변경 성공
+    res.status(200).json({
+      message: "비밀번호가 변경되었습니다.",
+      user: {
+        nickname: user.nickname,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: "비밀번호 변경 오류" });
   }
 });
 
