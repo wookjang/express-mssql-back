@@ -13,12 +13,18 @@ let sequelize;
 if (config.use_env_variable) {
   sequelize = new Sequelize(process.env[config.use_env_variable], config);
 } else {
-  sequelize = new Sequelize(
-    config.database,
-    config.username,
-    config.password,
-    config
-  );
+  sequelize = new Sequelize(config.database, config.username, config.password, {
+    ...config,
+
+    dialectOptions: {
+      options: {
+        useUTC: false, // UTC 사용 안 함
+        enableArithAbort: true,
+        dateFirst: 1,
+      },
+    },
+    timezone: "+09:00", // 한국 시간 기준으로 저장
+  });
 }
 
 sequelize

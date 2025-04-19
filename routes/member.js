@@ -3,6 +3,17 @@ const router = express.Router();
 const db = require("../models");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+require("dotenv").config();
+const { DataTypes } = require("sequelize");
+const dayjs = require("dayjs");
+
+// 오버라이드
+DataTypes.DATE.prototype._stringify = function _stringify(date, options) {
+  // 타임존 적용 후 YYYY-MM-DD HH:mm:ss.SSS 포맷으로 반환
+  return dayjs(this._applyTimezone(date, options)).format(
+    "YYYY-MM-DD HH:mm:ss.SSS"
+  );
+};
 
 const JWT_SECRET = process.env.JWT_SECRET || "yourSecretKey";
 const JWT_EXPIRES = "1h"; // 토큰 만료시간
@@ -53,13 +64,38 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ error: "비밀번호가 일치하지 않습니다." });
     }
 
-    const payload = {
-      seq: user.seq,
-      email: user.email,
-      nickname: user.nickname,
-    };
+    //토큰 발급
+    const accessToken = jwt.sign(
+      {
+        seq: user.seq,
+        email: user.email,
+        nickname: user.nickname,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" }
+    );
 
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+    const refreshToken = jwt.sign(
+      { seq: user.seq },
+      process.env.JWT_REFRESH_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    const now = dayjs().toDate();
+    const expires = dayjs().add(5, "minute").toDate();
+
+    try {
+      await db.MemberSession.create({
+        member_seq: user.seq,
+        refresh_token: refreshToken,
+        created_at: now,
+        expired_at: expires,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "세션 저장 중 오류 발생",
+      });
+    }
 
     // 로그인 성공
     res.status(200).json({
@@ -69,9 +105,12 @@ router.post("/login", async (req, res) => {
         nickname: user.nickname,
         email: user.email,
         role: user.role,
+        accessToken,
       },
     });
   } catch (err) {
+    console.log(err);
+
     res.status(500).json({ error: "로그인 오류" });
   }
 });
